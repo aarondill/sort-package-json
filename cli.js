@@ -2,16 +2,31 @@
 import fs from 'node:fs'
 import { globbySync } from 'globby'
 import sortPackageJson from './index.js'
+import { parseArgs } from 'node:util'
 
-const isCheckFlag = (argument) => argument === '--check' || argument === '-c'
-const isQuietFlag = (argument) => argument === '--quiet' || argument === '-q'
+const cliArguments = parseCliArguments()
 
-const cliArguments = process.argv.slice(2)
-const isCheck = cliArguments.some(isCheckFlag)
-const isQuiet = cliArguments.some(isQuietFlag)
+function parseCliArguments() {
+  try {
+    return parseArgs({
+      options: {
+        check: { type: 'boolean', default: false, short: 'c' },
+        quiet: { type: 'boolean', default: false, short: 'q' },
+        version: { type: 'boolean', default: false, short: 'V' },
+        help: { type: 'boolean', default: false, short: 'h' },
+      },
+      allowPositionals: true,
+      strict: true,
+    })
+  } catch (err) {
+    const { message } = err
+    console.error(message)
+    process.exit(2)
+  }
+}
 
 function stdout(outputIfTTY = '', alwaysOutput = outputIfTTY) {
-  if (isQuiet) return
+  if (cliArguments?.values.quiet) return
   const isTerminal = !!process.stdout.isTTY
   if (isTerminal) {
     console.log(outputIfTTY)
@@ -21,8 +36,8 @@ function stdout(outputIfTTY = '', alwaysOutput = outputIfTTY) {
 }
 
 function stderr(outputIfTTY = '', alwaysOutput = outputIfTTY) {
-  if (isQuiet) return
-  const isTerminal = !!process.stdout.isTTY
+  if (cliArguments?.values.quiet) return
+  const isTerminal = !!process.stderr.isTTY
   if (isTerminal) {
     console.error(outputIfTTY)
   } else if (alwaysOutput !== null) {
@@ -30,7 +45,7 @@ function stderr(outputIfTTY = '', alwaysOutput = outputIfTTY) {
   }
 }
 
-const patterns = cliArguments.filter((argument) => !isCheckFlag(argument))
+const patterns = cliArguments.positionals
 
 if (!patterns.length) {
   patterns[0] = 'package.json'
@@ -50,7 +65,7 @@ files.forEach((file) => {
   const sorted = sortPackageJson(packageJson)
 
   if (sorted !== packageJson) {
-    if (isCheck) {
+    if (cliArguments.values.check) {
       notSortedFiles++
       stdout(file)
     } else {
@@ -60,7 +75,7 @@ files.forEach((file) => {
   }
 })
 
-if (isCheck) {
+if (cliArguments.values.check) {
   stdout()
   if (notSortedFiles) {
     stdout(
