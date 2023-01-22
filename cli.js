@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import fs from 'node:fs'
 import { globbySync } from 'globby'
+import fs from 'node:fs'
 import sortPackageJson from './index.js'
 import { parseArgs } from 'node:util'
 
@@ -43,6 +43,29 @@ function stderr(outputIfTTY = '', alwaysOutput = outputIfTTY) {
   } else if (alwaysOutput !== null) {
     console.error(alwaysOutput)
   }
+}
+
+if (cliArguments.values.help) {
+  console.log(
+    `Usage: sort-package-json [OPTION...] [FILE...]
+Sort npm package.json files. Default: ./package.json
+Strings passed as files are parsed as globs.
+
+  -c, --check                check if FILES are sorted
+  -q, --quiet                don't output success messages
+  -h, --help                 display this help and exit
+  -V, --version              display the version and exit
+  `,
+  )
+  process.exit(0)
+}
+if (cliArguments.values.version) {
+  const cliParentDir = new URL('package.json', import.meta.url)
+  const packageJsonBuffer = fs.readFileSync(cliParentDir)
+  const { version } = JSON.parse(packageJsonBuffer)
+
+  console.log(`sort-package-json ${version}`)
+  process.exit(0)
 }
 
 const patterns = cliArguments.positionals
