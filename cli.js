@@ -1,19 +1,26 @@
 #!/usr/bin/env node
 import { globbySync } from 'globby'
 import fs from 'node:fs'
-import sortPackageJson from './index.js'
 import { parseArgs } from 'node:util'
+import sortPackageJson from './index.js'
 
 const cliArguments = parseCliArguments()
+
+if (cliArguments.values.help) help()
+else if (cliArguments.values.version) version()
+
+const files = findFiles()
+if (cliArguments.values.check) checkFiles(files)
+else sortFiles(files)
 
 function parseCliArguments() {
   try {
     return parseArgs({
       options: {
-        check: { type: 'boolean', default: false, short: 'c' },
-        quiet: { type: 'boolean', default: false, short: 'q' },
-        version: { type: 'boolean', default: false, short: 'V' },
-        help: { type: 'boolean', default: false, short: 'h' },
+        check: { type: 'boolean', short: 'c' },
+        quiet: { type: 'boolean', short: 'q' },
+        version: { type: 'boolean', short: 'V' },
+        help: { type: 'boolean', short: 'h' },
       },
       allowPositionals: true,
       strict: true,
@@ -23,6 +30,29 @@ function parseCliArguments() {
     console.error(message)
     process.exit(2)
   }
+}
+function help() {
+  console.log(
+    `Usage: sort-package-json [OPTION...] [FILE...]
+Sort npm package.json files. Default: ./package.json
+Strings passed as files are parsed as globs.
+
+  -c, --check                check if FILES are sorted
+  -q, --quiet                don't output success messages
+  -h, --help                 display this help and exit
+  -V, --version              display the version and exit
+  `,
+  )
+  process.exit(0)
+}
+
+function version() {
+  const cliParentDir = new URL('package.json', import.meta.url)
+  const packageJsonBuffer = fs.readFileSync(cliParentDir)
+  const { version } = JSON.parse(packageJsonBuffer)
+
+  console.log(`sort-package-json ${version}`)
+  process.exit(0)
 }
 
 function stdout(outputIfTTY = '', alwaysOutput = outputIfTTY) {
@@ -45,60 +75,46 @@ function stderr(outputIfTTY = '', alwaysOutput = outputIfTTY) {
   }
 }
 
-if (cliArguments.values.help) {
-  console.log(
-    `Usage: sort-package-json [OPTION...] [FILE...]
-Sort npm package.json files. Default: ./package.json
-Strings passed as files are parsed as globs.
+function findFiles() {
+  const patterns = cliArguments.positionals
 
-  -c, --check                check if FILES are sorted
-  -q, --quiet                don't output success messages
-  -h, --help                 display this help and exit
-  -V, --version              display the version and exit
-  `,
-  )
-  process.exit(0)
-}
-if (cliArguments.values.version) {
-  const cliParentDir = new URL('package.json', import.meta.url)
-  const packageJsonBuffer = fs.readFileSync(cliParentDir)
-  const { version } = JSON.parse(packageJsonBuffer)
+  if (!patterns.length) {
+    patterns[0] = 'package.json'
+  }
 
-  console.log(`sort-package-json ${version}`)
-  process.exit(0)
+  const files = globbySync(patterns)
+
+  if (files.length === 0) {
+    stderr('No matching files.')
+    process.exit(1)
+  }
+  return files
 }
 
-const patterns = cliArguments.positionals
+function sortFiles(files) {
+  files.forEach((file) => {
+    const packageJson = fs.readFileSync(file, 'utf8')
+    const sorted = sortPackageJson(packageJson)
 
-if (!patterns.length) {
-  patterns[0] = 'package.json'
-}
-
-const files = globbySync(patterns)
-
-if (files.length === 0) {
-  stderr('No matching files.')
-  process.exit(1)
-}
-
-let notSortedFiles = 0
-
-files.forEach((file) => {
-  const packageJson = fs.readFileSync(file, 'utf8')
-  const sorted = sortPackageJson(packageJson)
-
-  if (sorted !== packageJson) {
-    if (cliArguments.values.check) {
-      notSortedFiles++
-      stdout(file)
-    } else {
+    if (sorted !== packageJson) {
       fs.writeFileSync(file, sorted, 'utf8')
       stdout(`${file} is sorted!`)
     }
-  }
-})
+  })
+}
 
-if (cliArguments.values.check) {
+function checkFiles(files) {
+  let notSortedFiles = 0
+  files.forEach((file) => {
+    const packageJson = fs.readFileSync(file, 'utf8')
+    const sorted = sortPackageJson(packageJson)
+
+    if (sorted !== packageJson) {
+      notSortedFiles++
+      stdout(file)
+    }
+  })
+
   stdout()
   if (notSortedFiles) {
     stdout(
