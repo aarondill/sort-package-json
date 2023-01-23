@@ -18,6 +18,63 @@ test('cli', (t) => {
   )
 })
 
+test('run `cli --help`', macro.testCLI, {
+  args: ['--help'],
+  message: 'Should report help menu.',
+})
+
+test('run `cli --help --quiet`', macro.testCLI, {
+  args: ['--help', '--quiet'],
+  message: 'Should report help menu overriding quiet.',
+})
+
+test('run `cli --help` without tty', macro.testCLI, {
+  args: ['--help'],
+  message: 'Should report help menu regardless of tty.',
+  isTerminal: { stdout: false, stderr: false },
+})
+
+test('run `cli -h`', macro.testCLI, {
+  args: ['-h'],
+  message: 'Should support help alias.',
+})
+
+test('run `cli --help` with other arguments', macro.testCLI, {
+  args: ['NONE_EXISTS_FILE', '--help'],
+  message: 'Should prioritize help argument.',
+})
+
+test('run `cli --version`', macro.testCLI, {
+  args: ['--version'],
+  message: 'Should report version number.',
+})
+
+test('run `cli --version --quiet`', macro.testCLI, {
+  args: ['--version', '--quiet'],
+  message: 'Should report version overriding quiet.',
+})
+
+test('run `cli --version` without tty', macro.testCLI, {
+  args: ['--version'],
+  message: 'Should report version number regardless of tty.',
+  isTerminal: { stdout: false, stderr: false },
+})
+
+test('run `cli -v`', macro.testCLI, {
+  args: ['-v'],
+  message: 'Should support version alias.',
+})
+
+test('run `cli --version` with other arguments', macro.testCLI, {
+  args: ['NONE_EXISTS_FILE', '--version'],
+  message: 'Should prioritize version argument.',
+})
+
+test('run `cli --help` with `--version`', macro.testCLI, {
+  args: ['--version', '--help'],
+  message: 'Should prioritize help over version.',
+})
+
 test('run `cli` with no patterns', macro.testCLI, {
   fixtures: [
     {
