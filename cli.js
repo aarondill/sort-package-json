@@ -113,5 +113,5 @@ if (isCheck) {
       null,
     )
   }
-  process.exit(Math.min(notSortedFiles, 255))
 }
+process.exit(Math.min(notSortedFiles, 255))
