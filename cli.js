@@ -3,11 +3,11 @@ import { globbySync } from 'globby'
 import fs from 'node:fs'
 import { parseArgs } from 'node:util'
 import sortPackageJson from './index.js'
-
+let notSortedFiles = 0
 const cliArguments = parseCliArguments()
 
-if (cliArguments.values.help) help()
-else if (cliArguments.values.version) version()
+if (cliArguments.values.help) showHelp()
+else if (cliArguments.values.version) showVersion()
 
 const files = findFiles()
 if (cliArguments.values.check) checkFiles(files)
@@ -31,7 +31,7 @@ function parseCliArguments() {
     process.exit(2)
   }
 }
-function help() {
+function showHelp() {
   console.log(
     `Usage: sort-package-json [OPTION...] [FILE...]
 Sort npm package.json files. Default: ./package.json
@@ -46,7 +46,7 @@ Strings passed as files are parsed as globs.
   process.exit(0)
 }
 
-function version() {
+function showVersion() {
   const packageJsonUrl = new URL('package.json', import.meta.url)
   const packageJsonBuffer = fs.readFileSync(packageJsonUrl)
   const { version } = JSON.parse(packageJsonBuffer)
@@ -57,7 +57,8 @@ function version() {
 
 function stdout(outputIfTTY = '', alwaysOutput = outputIfTTY) {
   if (cliArguments?.values.quiet) return
-  const isTerminal = !!process.stdout.isTTY
+  const isTerminal =
+    !!process.stdout.isTTY || Boolean(process.env.STDOUT_IS_TTY)
   if (isTerminal) {
     console.log(outputIfTTY)
   } else if (alwaysOutput !== null) {
@@ -66,8 +67,8 @@ function stdout(outputIfTTY = '', alwaysOutput = outputIfTTY) {
 }
 
 function stderr(outputIfTTY = '', alwaysOutput = outputIfTTY) {
-  if (cliArguments?.values.quiet) return
-  const isTerminal = !!process.stderr.isTTY
+  const isTerminal =
+    !!process.stderr.isTTY || Boolean(process.env.STDERR_IS_TTY)
   if (isTerminal) {
     console.error(outputIfTTY)
   } else if (alwaysOutput !== null) {
@@ -91,23 +92,48 @@ function findFiles() {
   return files
 }
 
+function handleError(error, file) {
+  notSortedFiles++
+  stderr(
+    `could not ${cliArguments.values.check ? 'check' : 'sort'} ${file}`,
+    file,
+  )
+  stderr(error.message, null)
+}
+
 function sortFiles(files) {
   files.forEach((file) => {
-    const packageJson = fs.readFileSync(file, 'utf8')
-    const sorted = sortPackageJson(packageJson)
+    let sorted, packageJson
+    try {
+      packageJson = fs.readFileSync(file, 'utf8')
+      sorted = sortPackageJson(packageJson)
+    } catch (error) {
+      handleError(error, file)
+      return
+    }
 
     if (sorted !== packageJson) {
-      fs.writeFileSync(file, sorted, 'utf8')
-      stdout(`${file} is sorted!`)
+      try {
+        fs.writeFileSync(file, sorted, 'utf8')
+      } catch (error) {
+        handleError(error, file)
+        return
+      }
+      stdout(`${file} is sorted!`, file)
     }
   })
 }
 
 function checkFiles(files) {
-  let notSortedFiles = 0
   files.forEach((file) => {
-    const packageJson = fs.readFileSync(file, 'utf8')
-    const sorted = sortPackageJson(packageJson)
+    let sorted, packageJson
+    try {
+      packageJson = fs.readFileSync(file, 'utf8')
+      sorted = sortPackageJson(packageJson)
+    } catch (error) {
+      handleError(error, file)
+      return
+    }
 
     if (sorted !== packageJson) {
       notSortedFiles++
@@ -115,19 +141,21 @@ function checkFiles(files) {
     }
   })
 
-  stdout()
+  stdout('', null)
   if (notSortedFiles) {
     stdout(
       notSortedFiles === 1
         ? `${notSortedFiles} of ${files.length} matched file is not sorted.`
         : `${notSortedFiles} of ${files.length} matched files are not sorted.`,
+      null,
     )
   } else {
     stdout(
       files.length === 1
         ? `${files.length} matched file is sorted.`
         : `${files.length} matched files are sorted.`,
+      null,
     )
   }
-  process.exit(notSortedFiles)
 }
+process.exit(Math.min(notSortedFiles, 255))

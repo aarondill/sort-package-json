@@ -120,7 +120,10 @@ function asItIs(t, { path, options }, excludeTypes = []) {
   }
 }
 
-async function testCLI(t, { fixtures = [], args, message }) {
+async function testCLI(t, { fixtures = [], args, message, isTerminal = {} }) {
+  if (isTerminal.stdout === undefined) isTerminal.stdout = true
+  if (isTerminal.stderr === undefined) isTerminal.stderr = true
+
   const cwd = tempy.directory()
 
   fixtures = fixtures.map(({ file = 'package.json', content, expect }) => {
@@ -145,6 +148,7 @@ async function testCLI(t, { fixtures = [], args, message }) {
     args,
     cwd,
     message,
+    isTerminal,
   })
 
   for (const fixture of fixtures) {
@@ -166,17 +170,27 @@ async function testCLI(t, { fixtures = [], args, message }) {
         expect,
       })),
       args,
+      isTerminal,
       result,
     },
     message,
   )
 }
 
-function runCLI({ args = [], cwd = process.cwd() }) {
+function runCLI({ args = [], cwd = process.cwd(), isTerminal }) {
+  const env = { ...process.env }
+  if (isTerminal.stdout) env.STDOUT_IS_TTY = 'true'
+  if (isTerminal.stderr) env.STDERR_IS_TTY = 'true'
+
   return new Promise((resolve) => {
-    execFile('node', [cliScript, ...args], { cwd }, (error, stdout, stderr) => {
-      resolve({ errorCode: error && error.code, stdout, stderr })
-    })
+    execFile(
+      'node',
+      [cliScript, ...args],
+      { cwd, env },
+      (error, stdout, stderr) => {
+        resolve({ errorCode: error && error.code, stdout, stderr })
+      },
+    )
   })
 }
 
