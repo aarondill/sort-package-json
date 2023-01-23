@@ -51,14 +51,16 @@ Strings passed as files are parsed as globs.
 }
 if (isVersion) {
   const packageJsonUrl = new URL('package.json', import.meta.url)
-  const packageJsonBuffer = fs.readFileSync(packageJsonUrl)
+  const packageJsonBuffer = fs.readFileSync(packageJsonUrl, 'utf8')
   const { version } = JSON.parse(packageJsonBuffer)
 
   console.log(`sort-package-json ${version}`)
   process.exit(0)
 }
 
-const patterns = cliArguments.filter((argument) => !isCheckFlag(argument))
+const patterns = cliArguments.filter(
+  (argument) => !isCheckFlag(argument) && !isQuietFlag(argument),
+)
 
 if (!patterns.length) {
   patterns[0] = 'package.json'
@@ -73,15 +75,19 @@ if (files.length === 0) {
 
 let notSortedFiles = 0
 
+function handleError(error, file) {
+  notSortedFiles++
+  stderr(`could not ${isCheck ? 'check' : 'sort'} ${file}`, file)
+  stderr(error.message, null)
+}
+
 files.forEach((file) => {
-  const packageJson = fs.readFileSync(file, 'utf8')
-  let sorted = null
+  let sorted, packageJson
   try {
+    packageJson = fs.readFileSync(file, 'utf8')
     sorted = sortPackageJson(packageJson)
   } catch (error) {
-    stderr(`could not ${isCheck ? 'check' : 'sort'} ${file}`, file)
-    stderr(error.message, null)
-    notSortedFiles++
+    handleError(error, file)
     return
   }
 
@@ -90,7 +96,12 @@ files.forEach((file) => {
       notSortedFiles++
       stdout(file)
     } else {
-      fs.writeFileSync(file, sorted, 'utf8')
+      try {
+        fs.writeFileSync(file, sorted, 'utf8')
+      } catch (error) {
+        handleError(error, file)
+        return
+      }
       stdout(`${file} is sorted!`, file)
     }
   }
